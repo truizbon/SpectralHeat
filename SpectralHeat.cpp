@@ -37,26 +37,24 @@ int main(int argc, char *argv[]) {
     // stop timer
     auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = finish - start;
-    //std::cout << "Elapsed time: " << elapsed.count() << " s" << std::endl;
 
     std::vector<double> y = solution[0]; // u_temp
     std::vector<double> x = solution[1]; // x_coord
 
-    
-    // write solution to file as x and y
+    // write solution to file as x and y with precision 4
     std::ofstream file;
     file.open("solution.txt");
     for (int i = 0; i < x.size(); i++) {
-        file << x[i] << " " << y[i] << std::endl;
+        file << std::fixed << std::setprecision(4) << x[i] << " " << y[i] << std::endl;
     }
     file.close();
 
-    // write elapsed time to file "time.txt"
+    // write elapsed time to file whose name depends on p and num_elem .txt
     std::ofstream file2;
-    file2.open("time.txt");
+    std::string filename = "elapsed_time.txt";
+    file2.open(filename);
     file2 << elapsed.count() << std::endl;
     file2.close();
-
 
     // run python script to plot solution "plot.py"
     system("python3 plot.py");
@@ -88,7 +86,6 @@ std::vector<std::vector<double> > inverse(std::vector<std::vector<double> > m) {
 
 std::vector<double> initial_distribution(std::vector<double> x) {
     std::vector<double> distribution(x.size());
-    std::cout << std::fixed << std::setprecision(4);
     for (int i = 0; i < x.size(); i++) {
         distribution[i] = sin((PI) * (1/(x[x.size() - 1] - x[0])) * x[i]);
     }
@@ -227,12 +224,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     // construct the basis lagrange polynomials
     std::vector<std::vector<double> > phi_hat(num_quad_points, std::vector<double>(num_quad_points, 0.0));
     std::vector<std::vector<double> > phi_hat_deriv(num_quad_points, std::vector<double>(num_quad_points, 0.0));
-    // for (int i = 0; i < num_quad_points; i++) {
-    //     for (int j = 0; j < num_quad_points; j++) {
-    //         phi_hat[i][j] = 0.0;
-    //         phi_hat_deriv[i][j] = 0.0;
-    //     }
-    // }
+
     
     for (int i = 0; i < num_quad_points; i++) {
         for (int j = 0; j < num_quad_points; j++) {
@@ -240,8 +232,6 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
             phi_hat_deriv[i][j] = lagrange_basis_derivative(gl_pts, i+1, gl_pts[j]);
         }
     }
-
-
 
     int dof = num_elem + 1 + (p - 1) * num_elem;
     
@@ -253,15 +243,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     std::vector<std::vector<double> > f(dof, std::vector<double>(1, 0.0));
     // solution vector
     std::vector<std::vector<double> > u_temp(dof, std::vector<double>(1, 0.0));
-    
-    // for (int i = 0; i < dof; i++) {
-    //     for (int j = 0; j < dof; j++) {
-    //         m[i][j] = 0.0;
-    //         k[i][j] = 0.0;
-    //     }
-    //     f[i][0] = 0.0;
-    //     u_temp[i][0] = 0.0;
-    // }
+
 
     x_w = lglnodes(p);
     gl_pts = x_w[0];
@@ -294,12 +276,6 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
         
         // Me zeros
         std::vector<std::vector<double> > me(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
-        
-        // for (int j = 0; j < num_basis_functions; j++) {
-        //     for (int k = 0; k < num_basis_functions; k++) {
-        //         me[j][k] = 0.0;
-        //     }
-        // }
 
         for (int q = 0; q < num_quad_points; q++) {
             double weight = det_j_mat * gl_wts[q];
@@ -322,64 +298,15 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
         
     }
 
-    
-    // create stiffness matrix
-    for (int i = 0; i < num_elem; i++) {
-            
-            // Ke zeros
-            std::vector<std::vector<double> > ke(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
-            // for (int j = 0; j < num_basis_functions; j++) {
-            //     for (int k = 0; k < num_basis_functions; k++) {
-            //         ke[j][k] = 0.0;
-            //     }
-            // }
-
-        
-            for (int q = 0; q < num_quad_points; q++) {
-                double weight = det_j_mat * gl_wts[q];
-                for (int j = 0; j < num_basis_functions; j++) {
-                    for (int z = 0; z < num_basis_functions; z++) {
-                        ke[j][z] += phi_hat_deriv[j][q] * inv_j_mat * phi_hat_deriv[z][q] * weight * inv_j_mat;
-                    }
-                }
-            }
-            
-            
-            double lbound = i * (num_quad_points - 1) + 1;
-            double ubound = lbound + num_quad_points - 1;
-
-            
-            for (int j = lbound - 1, g = 0; j < ubound; g++,j++) {
-                
-                for (int z = lbound - 1, h = 0; z < ubound; h++,z++) {
-                    
-                    k[j][z] += ke[g][h];
-                }
-            }
-            
-    }
 
     std::vector<double> u_old(dof);
     std::vector<double> u_new(dof);
     u_old = initial_distribution(x_coord);
 
-
-    // matrix with 1 on the diagonal
-    std::vector<std::vector<double> > diag(dof, std::vector<double>(dof));
-    for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            if (i == j) {
-                diag[i][j] = 1.0;
-            } else {
-                diag[i][j] = 0.0;
-            }
-        }
-    }
-
     // inverse matrix
     std::vector<std::vector<double> > inv_m(dof, std::vector<double>(dof));
 
-    //cublas?
+    // //cublas?
     inv_m = inverse(m);
 
     // multiply nu and delta_t to inv_m
@@ -388,35 +315,58 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
             inv_m[i][j] = inv_m[i][j] * nu * delta_t;
         }
     }
-
-    // matrix multiplication of inv_m's columns and k's rows
-    std::vector<std::vector<double> > m_inv_k(dof, std::vector<double>(dof));
-    for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            m_inv_k[i][j] = 0.0;
-            for (int z = 0; z < dof; z++) {
-                m_inv_k[i][j] += inv_m[i][z] * k[z][j];
-            }
-        }
-    }
-
-    // subtract m_inv_k from diag
-    for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            diag[i][j] -= m_inv_k[i][j];
-        }
-    }
     
 
-    for (int count_z = 0; count_z < (final_time / delta_t)-1; count_z++) {
+    // Create dv/dx du/dx term
+    std::vector<double> du(dof);
 
-        // matrix vector multiplication of diag and u_old into u_new
+    for (int count_z = 0; count_z < (final_time / delta_t)-1; count_z++) {
+        
+        // matrix R of zeros
+        std::vector<std::vector<double> > R(dof, std::vector<double>(1, 0.0));
+
+        for (int n = 0; n < num_elem; n++) {
+            
+            // Re zeros
+            std::vector<std::vector<double> > re(num_basis_functions, std::vector<double>(1, 0.0));
+            double lbound = n * (num_quad_points - 1) + 1;
+            double ubound = lbound + num_quad_points - 1;
+
+            // Project u to Gauss points
+            for (int q = 0; q < num_quad_points; q++) {
+                du[q] = 0.0;
+                for (int i = 1; i <= num_basis_functions; i++) {
+                    du[q] += u_old[lbound + i - 2] * phi_hat_deriv[i - 1][q];
+                } 
+            }
+
+            for (int q = 0; q < num_quad_points; q++) {
+                double weight = det_j_mat * gl_wts[q];
+                
+                for (int i = 0; i < num_basis_functions; i++) {
+                    re[i][0] += phi_hat_deriv[i][q] * inv_j_mat * du[q] * inv_j_mat * weight;
+                }
+            }
+
+            for (int j = lbound - 1, i = 0; j < ubound; i++,j++) {
+                R[j][0] += re[i][0];
+            }
+
+        }
+
+        // multiply matrix of one column R by inv_m into matrix R_inv_m
+        std::vector<std::vector<double> > R_inv_m(dof, std::vector<double>(1, 0.0));
         for (int i = 0; i < dof; i++) {
-            u_new[i] = 0.0;
             for (int j = 0; j < dof; j++) {
-                u_new[i] += diag[i][j] * u_old[j];
+                R_inv_m[i][0] += inv_m[i][j] * R[j][0];
             }
         }
+
+        // subtract R_inv_m from u_old and store in u_new
+        for (int i = 0; i < dof; i++) {
+            u_new[i] = u_old[i] - R_inv_m[i][0];
+        }
+
 
         u_new[0] = 0.0;
         u_new[dof-1] = 0.0;

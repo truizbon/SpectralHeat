@@ -28,7 +28,15 @@ int main(int argc, char *argv[]) {
     double nu = atof(argv[4]);
     double final_time = atof(argv[5]);
 
+    // start timer
+    auto start = std::chrono::high_resolution_clock::now();
+
     std::vector<std::vector<double> > solution = spectral_heat(p, num_elem, l, nu, final_time);
+
+    // stop timer
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    //std::cout << "Elapsed time: " << elapsed.count() << " s" << std::endl;
 
     std::vector<double> y = solution[0]; // u_temp
     std::vector<double> x = solution[1]; // x_coord
@@ -41,6 +49,13 @@ int main(int argc, char *argv[]) {
         file << x[i] << " " << y[i] << std::endl;
     }
     file.close();
+
+    // write elapsed time to file "time.txt"
+    std::ofstream file2;
+    file2.open("time.txt");
+    file2 << elapsed.count() << std::endl;
+    file2.close();
+
 
     // run python script to plot solution "plot.py"
     system("python3 plot.py");

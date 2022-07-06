@@ -12,12 +12,13 @@ def main():
             x.append(float(line.split()[0]))
             y.append(float(line.split()[1]))
 
-    # plot the solution
+    # plot the solution into a file "solution.png"
     plt.plot(x, y)
     plt.xlabel("x")
     plt.ylabel("y")
     plt.title("Solution")
-    plt.show()
+    plt.savefig("solution.png")
+    #plt.show()
 
 
 

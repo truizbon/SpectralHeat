@@ -196,7 +196,7 @@ std::vector<std::vector<double> > lglnodes(int n) {
 std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, double nu, double final_time) {
     // partition of the domain
     double delta_x = l / num_elem;
-    double delta_t = 0.1 * std::min((delta_x * delta_x) / (nu + 1), final_time/2);
+    double delta_t = 0.5 * std::min((delta_x * delta_x) / ((nu + 1)*std::pow(p,4)), final_time/2);
     
     // x_coord = 0 : delta_x : l
     int num_quad_points = p + 1;
@@ -209,14 +209,14 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     std::vector<double> gl_wts = x_w[1];
 
     // construct the basis lagrange polynomials
-    std::vector<std::vector<double> > phi_hat(num_quad_points, std::vector<double>(num_quad_points));
-    std::vector<std::vector<double> > phi_hat_deriv(num_quad_points, std::vector<double>(num_quad_points));
-    for (int i = 0; i < num_quad_points; i++) {
-        for (int j = 0; j < num_quad_points; j++) {
-            phi_hat[i][j] = 0.0;
-            phi_hat_deriv[i][j] = 0.0;
-        }
-    }
+    std::vector<std::vector<double> > phi_hat(num_quad_points, std::vector<double>(num_quad_points, 0.0));
+    std::vector<std::vector<double> > phi_hat_deriv(num_quad_points, std::vector<double>(num_quad_points, 0.0));
+    // for (int i = 0; i < num_quad_points; i++) {
+    //     for (int j = 0; j < num_quad_points; j++) {
+    //         phi_hat[i][j] = 0.0;
+    //         phi_hat_deriv[i][j] = 0.0;
+    //     }
+    // }
     
     for (int i = 0; i < num_quad_points; i++) {
         for (int j = 0; j < num_quad_points; j++) {
@@ -230,22 +230,22 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     int dof = num_elem + 1 + (p - 1) * num_elem;
     
     // mass matrix
-    std::vector<std::vector<double> > m(dof, std::vector<double>(dof));
+    std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
     // stiffness matrix
-    std::vector<std::vector<double> > k(dof, std::vector<double>(dof));
+    std::vector<std::vector<double> > k(dof, std::vector<double>(dof, 0.0));
     // load vector
-    std::vector<std::vector<double> > f(dof, std::vector<double>(1));
+    std::vector<std::vector<double> > f(dof, std::vector<double>(1, 0.0));
     // solution vector
-    std::vector<std::vector<double> > u_temp(dof, std::vector<double>(1));
+    std::vector<std::vector<double> > u_temp(dof, std::vector<double>(1, 0.0));
     
-    for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            m[i][j] = 0.0;
-            k[i][j] = 0.0;
-        }
-        f[i][0] = 0.0;
-        u_temp[i][0] = 0.0;
-    }
+    // for (int i = 0; i < dof; i++) {
+    //     for (int j = 0; j < dof; j++) {
+    //         m[i][j] = 0.0;
+    //         k[i][j] = 0.0;
+    //     }
+    //     f[i][0] = 0.0;
+    //     u_temp[i][0] = 0.0;
+    // }
 
     x_w = lglnodes(p);
     gl_pts = x_w[0];
@@ -277,13 +277,13 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     for (int i = 0; i < num_elem; i++) {
         
         // Me zeros
-        std::vector<std::vector<double> > me(num_basis_functions, std::vector<double>(num_basis_functions));
+        std::vector<std::vector<double> > me(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
         
-        for (int j = 0; j < num_basis_functions; j++) {
-            for (int k = 0; k < num_basis_functions; k++) {
-                me[j][k] = 0.0;
-            }
-        }
+        // for (int j = 0; j < num_basis_functions; j++) {
+        //     for (int k = 0; k < num_basis_functions; k++) {
+        //         me[j][k] = 0.0;
+        //     }
+        // }
 
         for (int q = 0; q < num_quad_points; q++) {
             double weight = det_j_mat * gl_wts[q];
@@ -311,12 +311,12 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     for (int i = 0; i < num_elem; i++) {
             
             // Ke zeros
-            std::vector<std::vector<double> > ke(num_basis_functions, std::vector<double>(num_basis_functions));
-            for (int j = 0; j < num_basis_functions; j++) {
-                for (int k = 0; k < num_basis_functions; k++) {
-                    ke[j][k] = 0.0;
-                }
-            }
+            std::vector<std::vector<double> > ke(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
+            // for (int j = 0; j < num_basis_functions; j++) {
+            //     for (int k = 0; k < num_basis_functions; k++) {
+            //         ke[j][k] = 0.0;
+            //     }
+            // }
 
         
             for (int q = 0; q < num_quad_points; q++) {

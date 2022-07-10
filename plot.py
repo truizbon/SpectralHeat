@@ -15,7 +15,7 @@ def main():
     # plot the solution into a file "solution.png"
     plt.plot(x, y)
     plt.xlabel("x")
-    plt.ylabel("y")
+    plt.ylabel("temperature")
     plt.title("Solution")
     plt.savefig("solution.png")
     #plt.show()

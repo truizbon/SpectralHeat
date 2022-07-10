@@ -269,8 +269,8 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     double j_mat = delta_x / 2;
     double det_j_mat = j_mat;
     double inv_j_mat = 1.0 / j_mat;
-
     
+    std::vector<std::vector<double> > temp(num_elem, std::vector<double>(num_basis_functions, 0.0));
     // compute the mass matrix
     for (int i = 0; i < num_elem; i++) {
         
@@ -286,16 +286,51 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
             }
         }
 
-       double lbound = i * (num_quad_points-1) + 1;
-       double ubound = lbound + num_quad_points - 1;
+        // print me
+        std::cout << "Me" << std::endl;
+        for (int j = 0; j < num_basis_functions; j++) {
+            for (int k = 0; k < num_basis_functions; k++) {
+                if (j == k) temp[i][k] = me[j][k];
+                // std::cout << me[j][k] << " ";
+            }
+            // std::cout << std::endl;
+        }
+        // std::cout << std::endl;
+
+        
 
 
-        for (int j = lbound - 1, i = 0; j < ubound; i++,j++) {
+
+    //    double lbound = i * (num_quad_points-1) + 1;
+    //    double ubound = lbound + num_quad_points - 1;
+
+
+    //     for (int j = lbound - 1, p = 0; j < ubound; p++,j++) {
+    //         for (int k = lbound - 1, z = 0; k < ubound; z++,k++) {
+    //             m[j][k] += me[p][z];
+    //         }
+    //     }
+        
+    }
+
+    // // print temp
+    //     std::cout << "Temp" << std::endl;
+    //     for (int j = 0; j < num_elem; j++) {
+    //         for (int k = 0; k < num_basis_functions; k++) {
+    //             std::cout << temp[j][k] << " ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     std::cout << std::endl;
+
+    for (int i = 0; i < num_elem; i++) {
+        double lbound = i * (num_quad_points-1) + 1;
+        double ubound = lbound + num_quad_points - 1;
+        for (int j = lbound - 1, p = 0; j < ubound; p++,j++) {
             for (int k = lbound - 1, z = 0; k < ubound; z++,k++) {
-                m[j][k] += me[i][z];
+                m[j][k] += temp[i][z];
             }
         }
-        
     }
 
 

@@ -6,6 +6,38 @@
 #include <fstream>
 #include <chrono>
 
+//  __global__ void mass_matrix(double* temp, double* phi_hat, int num_quad_points, int num_basis_functions, int dej_j_mat, int num_elements) {
+
+    // threadIndx has to be equilant to element (i.e 0, 1, 2...)
+
+    // .......
+
+    // 
+
+
+
+//     for (int i = 0; i < num_elem; i++) {
+    
+//     std::vector<std::vector<double> > me(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
+
+//     for (int q = 0; q < num_quad_points; q++) {
+//         double weight = det_j_mat * gl_wts[q];
+//         for (int j = 0; j < num_basis_functions; j++) {
+//             for (int k = 0; k < num_basis_functions; k++) {
+//                 me[j][k] += weight * phi_hat[j][q] * phi_hat[k][q];
+//             }
+//         }
+//     }
+
+//     // store me diagonal entries into temp
+//     for (int j = 0; j < num_basis_functions; j++) {
+//         for (int k = 0; k < num_basis_functions; k++) {
+//             if (j == k) temp[i][k] = me[j][k];
+//         }
+//     }
+// }
+
+
 
 #define PI 3.14159265359
 
@@ -273,33 +305,25 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     std::vector<std::vector<double> > temp(num_elem, std::vector<double>(num_basis_functions, 0.0));
     // compute the mass matrix
     for (int i = 0; i < num_elem; i++) {
-        
-        // Me zeros
-        std::vector<std::vector<double> > me(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
-
+       
+        int n = 0;
+        int m = 0;
         for (int q = 0; q < num_quad_points; q++) {
             double weight = det_j_mat * gl_wts[q];
-            for (int j = 0; j < num_basis_functions; j++) {
-                for (int k = 0; k < num_basis_functions; k++) {
-                    me[j][k] += weight * phi_hat[j][q] * phi_hat[k][q];
-                }
-            }
+            temp[i][q] += weight * phi_hat[n][q] * phi_hat[m][q];
+            n++;
+            m++;            
         }
 
-        // print me
-        std::cout << "Me" << std::endl;
-        for (int j = 0; j < num_basis_functions; j++) {
-            for (int k = 0; k < num_basis_functions; k++) {
-                if (j == k) temp[i][k] = me[j][k];
-                // std::cout << me[j][k] << " ";
-            }
-            // std::cout << std::endl;
-        }
-        // std::cout << std::endl;
+
+        // // store me diagonal entries into temp
+        // for (int j = 0; j < num_basis_functions; j++) {
+        //     for (int k = 0; k < num_basis_functions; k++) {
+        //         if (j == k) temp[i][k] = me[j][k];
+        //     }
+        // }
 
         
-
-
 
     //    double lbound = i * (num_quad_points-1) + 1;
     //    double ubound = lbound + num_quad_points - 1;

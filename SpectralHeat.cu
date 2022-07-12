@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <fstream>
 #include <chrono>
+#include "dev_array.h"
 
 
 
@@ -16,6 +17,20 @@ double lagrange_basis_polynomial(std::vector<double> quad_points, int count_i, d
 std::vector<std::vector<double> > lglnodes(int n);
 std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, double nu, double final_time);
 std::vector<std::vector<double> > inverse(std::vector<std::vector<double> > m);
+
+__global__ void mass_matrix(double* temp, double* phi_hat, double* gl_wts, double det_j_mat, int num_elem, int size) {
+    int row = blockIdx.y*blockDim.y+threadIdx.y;
+    int col = blockIdx.x*blockDim.x+threadIdx.x;
+
+
+    if (row < num_elem) {
+        int i_q = row*size+col;
+        int q_q = threadIdx.x*size+threadIdx.x;
+        double weight = det_j_mat * gl_wts[threadIdx.x];
+        temp[i_q] += weight * phi_hat[q_q] * phi_hat[q_q];
+    }
+}
+
 
 int main(int argc, char *argv[]) {
 
@@ -224,15 +239,16 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     std::vector<double> gl_wts = x_w[1];
 
     // construct the basis lagrange polynomials
-    std::vector<std::vector<double> > phi_hat(num_quad_points, std::vector<double>(num_quad_points, 0.0));
+    std::vector<double> phi_hat(num_quad_points * num_quad_points, 0.0);
     std::vector<std::vector<double> > phi_hat_deriv(num_quad_points, std::vector<double>(num_quad_points, 0.0));
 
     for (int i = 0; i < num_quad_points; i++) {
         for (int j = 0; j < num_quad_points; j++) {
-            phi_hat[i][j] = lagrange_basis_polynomial(gl_pts, i+1, gl_pts[j]);
+            phi_hat[i*num_quad_points+j] = lagrange_basis_polynomial(gl_pts, i+1, gl_pts[j]);
             phi_hat_deriv[i][j] = lagrange_basis_derivative(gl_pts, i+1, gl_pts[j]);
         }
     }
+
 
     int dof = num_elem + 1 + (p - 1) * num_elem;
     
@@ -276,33 +292,30 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     double j_mat = delta_x / 2;
     double det_j_mat = j_mat;
     double inv_j_mat = 1.0 / j_mat;
+    
+    std::vector<double> temp(num_elem * num_basis_functions, 0.0);
 
-    // std::cout << det_j_mat << std::endl;
-    // //print gl_wts
-    // std::cout << "gl_wts" << std::endl;
-    // for (int i = 0; i < num_basis_functions; i++) {
-    //     std::cout << gl_wts[i] << std::endl;
-    // }
-    
-    
-    std::vector<std::vector<double> > temp(num_elem, std::vector<double>(num_basis_functions, 0.0));
-    // compute the mass matrix
-    for (int i = 0; i < num_elem; i++) {
-       
-        for (int q = 0; q < num_quad_points; q++) {
-            double weight = det_j_mat * gl_wts[q];
-            temp[i][q] += weight * phi_hat[q][q] * phi_hat[q][q];
-   
-        }
-        
-    }
+     dev_array<double> device_temp(num_elem * num_basis_functions);
+    device_temp.set(&temp[0], num_elem * num_basis_functions);
+
+    dev_array<double> device_phi_hat(num_basis_functions * num_basis_functions);
+    device_phi_hat.set(&phi_hat[0], num_basis_functions * num_basis_functions);
+
+    dev_array<double> device_gl_wts(num_basis_functions);
+    device_gl_wts.set(&gl_wts[0], num_basis_functions);
+
+
+    mass_matrix<<<num_elem,num_basis_functions>>>(device_temp.getData(), device_phi_hat.getData(), device_gl_wts.getData(), det_j_mat, num_elem, num_basis_functions);
+    cudaDeviceSynchronize();
+
+    device_temp.get(&temp[0], num_elem * num_basis_functions);
 
 
     // // print temp
     // std::cout << "temp" << std::endl;
     // for (int i = 0; i < num_elem; i++) {
     //     for (int j = 0; j < num_basis_functions; j++) {
-    //         std::cout << temp[i][j] << " ";
+    //         std::cout << temp[i*num_basis_functions+j] << " ";
     //     }
     //     std::cout << std::endl;
     // }
@@ -312,7 +325,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
         double ubound = lbound + num_quad_points - 1;
         for (int j = lbound - 1; j < ubound; j++) {
             for (int k = lbound - 1, z = 0; k < ubound; z++,k++) {
-                if (j == k) m[j][k] += temp[i][z];
+                if (j == k) m[j][k] += temp[i*num_basis_functions+z];
             }
         }
     }

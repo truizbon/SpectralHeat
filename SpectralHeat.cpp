@@ -6,37 +6,6 @@
 #include <fstream>
 #include <chrono>
 
-//  __global__ void mass_matrix(double* temp, double* phi_hat, int num_quad_points, int num_basis_functions, int dej_j_mat, int num_elements) {
-
-    // threadIndx has to be equilant to element (i.e 0, 1, 2...)
-
-    // .......
-
-    // 
-
-
-
-//     for (int i = 0; i < num_elem; i++) {
-    
-//     std::vector<std::vector<double> > me(num_basis_functions, std::vector<double>(num_basis_functions, 0.0));
-
-//     for (int q = 0; q < num_quad_points; q++) {
-//         double weight = det_j_mat * gl_wts[q];
-//         for (int j = 0; j < num_basis_functions; j++) {
-//             for (int k = 0; k < num_basis_functions; k++) {
-//                 me[j][k] += weight * phi_hat[j][q] * phi_hat[k][q];
-//             }
-//         }
-//     }
-
-//     // store me diagonal entries into temp
-//     for (int j = 0; j < num_basis_functions; j++) {
-//         for (int k = 0; k < num_basis_functions; k++) {
-//             if (j == k) temp[i][k] = me[j][k];
-//         }
-//     }
-// }
-
 
 
 #define PI 3.14159265359
@@ -60,6 +29,7 @@ int main(int argc, char *argv[]) {
     double l = atof(argv[3]);
     double nu = atof(argv[4]);
     double final_time = atof(argv[5]);
+
 
     // start timer
     auto start = std::chrono::high_resolution_clock::now();
@@ -257,7 +227,6 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     std::vector<std::vector<double> > phi_hat(num_quad_points, std::vector<double>(num_quad_points, 0.0));
     std::vector<std::vector<double> > phi_hat_deriv(num_quad_points, std::vector<double>(num_quad_points, 0.0));
 
-    
     for (int i = 0; i < num_quad_points; i++) {
         for (int j = 0; j < num_quad_points; j++) {
             phi_hat[i][j] = lagrange_basis_polynomial(gl_pts, i+1, gl_pts[j]);
@@ -267,14 +236,19 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 
     int dof = num_elem + 1 + (p - 1) * num_elem;
     
+    std::cout << "A" << std::endl;
     // mass matrix
     std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
+    std::cout << "B" << std::endl;
     // stiffness matrix
     std::vector<std::vector<double> > k(dof, std::vector<double>(dof, 0.0));
+    std::cout << "C" << std::endl;
     // load vector
     std::vector<std::vector<double> > f(dof, std::vector<double>(1, 0.0));
+    std::cout << "D" << std::endl;
     // solution vector
     std::vector<std::vector<double> > u_temp(dof, std::vector<double>(1, 0.0));
+    std::cout << "E" << std::endl;
 
 
     x_w = lglnodes(p);
@@ -287,6 +261,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     }
 
 
+    
     // x_coord
     std::vector<double> x_coord(dof);
     for (int count_temp = 0; count_temp < num_elem; count_temp++) {
@@ -301,61 +276,56 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     double j_mat = delta_x / 2;
     double det_j_mat = j_mat;
     double inv_j_mat = 1.0 / j_mat;
+
+    // std::cout << det_j_mat << std::endl;
+    // //print gl_wts
+    // std::cout << "gl_wts" << std::endl;
+    // for (int i = 0; i < num_basis_functions; i++) {
+    //     std::cout << gl_wts[i] << std::endl;
+    // }
+    
     
     std::vector<std::vector<double> > temp(num_elem, std::vector<double>(num_basis_functions, 0.0));
     // compute the mass matrix
     for (int i = 0; i < num_elem; i++) {
        
-        int n = 0;
-        int m = 0;
         for (int q = 0; q < num_quad_points; q++) {
             double weight = det_j_mat * gl_wts[q];
-            temp[i][q] += weight * phi_hat[n][q] * phi_hat[m][q];
-            n++;
-            m++;            
+            temp[i][q] += weight * phi_hat[q][q] * phi_hat[q][q];
+   
         }
-
-
-        // // store me diagonal entries into temp
-        // for (int j = 0; j < num_basis_functions; j++) {
-        //     for (int k = 0; k < num_basis_functions; k++) {
-        //         if (j == k) temp[i][k] = me[j][k];
-        //     }
-        // }
-
-        
-
-    //    double lbound = i * (num_quad_points-1) + 1;
-    //    double ubound = lbound + num_quad_points - 1;
-
-
-    //     for (int j = lbound - 1, p = 0; j < ubound; p++,j++) {
-    //         for (int k = lbound - 1, z = 0; k < ubound; z++,k++) {
-    //             m[j][k] += me[p][z];
-    //         }
-    //     }
         
     }
 
+
     // // print temp
-    //     std::cout << "Temp" << std::endl;
-    //     for (int j = 0; j < num_elem; j++) {
-    //         for (int k = 0; k < num_basis_functions; k++) {
-    //             std::cout << temp[j][k] << " ";
-    //         }
-    //         std::cout << std::endl;
+    // std::cout << "temp" << std::endl;
+    // for (int i = 0; i < num_elem; i++) {
+    //     for (int j = 0; j < num_basis_functions; j++) {
+    //         std::cout << temp[i][j] << " ";
     //     }
     //     std::cout << std::endl;
+    // }
 
     for (int i = 0; i < num_elem; i++) {
         double lbound = i * (num_quad_points-1) + 1;
         double ubound = lbound + num_quad_points - 1;
-        for (int j = lbound - 1, p = 0; j < ubound; p++,j++) {
+        for (int j = lbound - 1; j < ubound; j++) {
             for (int k = lbound - 1, z = 0; k < ubound; z++,k++) {
-                m[j][k] += temp[i][z];
+                if (j == k) m[j][k] += temp[i][z];
             }
         }
     }
+
+    // // print m
+    // std::cout << "m:" << std::endl;
+    // for (int i = 0; i < dof; i++) {
+    //     for (int j = 0; j < dof; j++) {
+    //         std::cout << m[i][j] << " ";
+    //     }
+    //     std::cout << std::endl;
+    // }
+
 
 
     std::vector<double> u_old(dof);

@@ -31,6 +31,35 @@ __global__ void mass_matrix(double* temp, double* phi_hat, double* gl_wts, doubl
     }
 }
 
+__global__ void global_matrix(double* m, double* temp, int num_elem, int size, int even) {
+    int m_i = blockIdx.x*blockDim.x+threadIdx.x;
+    int temp_i = m_i;
+
+    if (blockIdx.x < num_elem) {
+        if (even && blockIdx.x % 2 == 0) {
+
+            if (blockIdx.x > 0) 
+                m_i -= blockIdx.x;
+
+            m[m_i] = temp[temp_i];
+
+
+        } else {
+            if (!even && blockIdx.x % 2 != 0) {
+
+                if (blockIdx.x > 1)
+                    m_i -= blockIdx.x;
+                else
+                    m_i -= 1;
+
+                m[m_i] += temp[temp_i];
+            }
+
+        }
+    }
+
+}
+
 
 int main(int argc, char *argv[]) {
 
@@ -254,7 +283,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     
     std::cout << "A" << std::endl;
     // mass matrix
-    std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
+    std::vector<double> m(dof, 0.0);
     std::cout << "B" << std::endl;
     // stiffness matrix
     std::vector<std::vector<double> > k(dof, std::vector<double>(dof, 0.0));
@@ -310,35 +339,27 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 
     device_temp.get(&temp[0], num_elem * num_basis_functions);
 
+    dev_array<double> device_m(dof);
+    device_m.set(&m[0], dof);
 
-    // // print temp
-    // std::cout << "temp" << std::endl;
-    // for (int i = 0; i < num_elem; i++) {
-    //     for (int j = 0; j < num_basis_functions; j++) {
-    //         std::cout << temp[i*num_basis_functions+j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
+    device_temp.set(&temp[0], num_elem * num_basis_functions); //
 
-    for (int i = 0; i < num_elem; i++) {
-        double lbound = i * (num_quad_points-1) + 1;
-        double ubound = lbound + num_quad_points - 1;
-        for (int j = lbound - 1; j < ubound; j++) {
-            for (int k = lbound - 1, z = 0; k < ubound; z++,k++) {
-                if (j == k) m[j][k] += temp[i*num_basis_functions+z];
-            }
-        }
+    global_matrix<<<num_elem,num_basis_functions>>>(device_m.getData(), device_temp.getData(), num_elem, num_basis_functions, 2);
+    cudaDeviceSynchronize();
+    global_matrix<<<num_elem,num_basis_functions>>>(device_m.getData(), device_temp.getData(), num_elem, num_basis_functions, 0);
+    cudaDeviceSynchronize();
+
+    device_m.get(&m[0], dof);
+    
+
+    // print m
+    std::cout << "m:" << std::endl;
+    for (int i = 0; i < dof; i++) {
+        std::cout << m[i] << " ";
     }
+    std::cout << std::endl;
 
-    // // print m
-    // std::cout << "m:" << std::endl;
-    // for (int i = 0; i < dof; i++) {
-    //     for (int j = 0; j < dof; j++) {
-    //         std::cout << m[i][j] << " ";
-    //     }
-    //     std::cout << std::endl;
-    // }
-
+    
 
 
     std::vector<double> u_old(dof);
@@ -347,7 +368,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 
     // inverse matrix
     std::vector<std::vector<double> > inv_m(dof, std::vector<double>(dof));
-
+    
     // //cublas?
     inv_m = inverse(m);
 

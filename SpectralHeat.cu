@@ -283,7 +283,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     
     std::cout << "A" << std::endl;
     // mass matrix
-    std::vector<double> m(dof, 0.0);
+    std::vector<double> temp_m(dof, 0.0);
     std::cout << "B" << std::endl;
     // stiffness matrix
     std::vector<std::vector<double> > k(dof, std::vector<double>(dof, 0.0));
@@ -340,7 +340,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     device_temp.get(&temp[0], num_elem * num_basis_functions);
 
     dev_array<double> device_m(dof);
-    device_m.set(&m[0], dof);
+    device_m.set(&temp_m[0], dof);
 
     device_temp.set(&temp[0], num_elem * num_basis_functions); //
 
@@ -349,17 +349,31 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     global_matrix<<<num_elem,num_basis_functions>>>(device_m.getData(), device_temp.getData(), num_elem, num_basis_functions, 0);
     cudaDeviceSynchronize();
 
-    device_m.get(&m[0], dof);
+    device_m.get(&temp_m[0], dof);
     
 
     // print m
     std::cout << "m:" << std::endl;
     for (int i = 0; i < dof; i++) {
-        std::cout << m[i] << " ";
+        std::cout << temp_m[i] << " ";
     }
     std::cout << std::endl;
 
-    
+    std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
+
+    for (int i = 0; i < dof; i++) {
+        for (int j = 0; j < dof; j++) {
+            if (i == j) m[i][j] = temp_m[i];
+        }
+    }
+
+    for (int i = 0; i < dof; i++) {
+        for (int j = 0; j < dof; j++) {
+            std::cout << m[i][j] << " ";
+        }
+        std::cout << std::endl;
+    }
+    std::cout << std::endl;
 
 
     std::vector<double> u_old(dof);

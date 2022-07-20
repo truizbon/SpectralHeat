@@ -16,7 +16,7 @@ double lagrange_basis_derivative(std::vector<double> quad_points, int n, double 
 double lagrange_basis_polynomial(std::vector<double> quad_points, int count_i, double x);
 std::vector<std::vector<double> > lglnodes(int n);
 std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, double nu, double final_time);
-std::vector<std::vector<double> > inverse(std::vector<std::vector<double> > m);
+std::vector<double> inverse(std::vector<double> m);
 
 __global__ void mass_matrix(double* temp, double* phi_hat, double* gl_wts, double det_j_mat, int num_elem, int size) {
     int temp_i = blockIdx.x*blockDim.x+threadIdx.x;
@@ -110,22 +110,12 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-std::vector<std::vector<double> > inverse(std::vector<std::vector<double> > m) {
+std::vector<double> inverse(std::vector<double> m) {
     int dof = m.size();
-    std::vector<std::vector<double> > inv(dof, std::vector<double>(dof));
+    std::vector<double> inv(dof, 0.0);
     for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            inv[i][j] = m[i][j];
-        }
-    }
-
-    for (int i = 0; i < dof; i++) {
-        inv[i][i] = 1.0 / inv[i][i];
-        for (int j = 0; j < dof; j++) {
-            if (i != j) {
-                inv[i][j] = -inv[i][j] / inv[i][i];
-            }
-        }
+        inv[i] = 1 / m[i];
+        
     }
 
     return inv;
@@ -367,13 +357,13 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     device_m.get(&temp_m[0], dof);
     
 
-    std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
+    // std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
 
-    for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            if (i == j) m[i][j] = temp_m[i];
-        }
-    }
+    // for (int i = 0; i < dof; i++) {
+    //     for (int j = 0; j < dof; j++) {
+    //         if (i == j) m[i][j] = temp_m[i];
+    //     }
+    // }
 
 
     std::vector<double> u_old(dof);
@@ -381,16 +371,16 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     u_old = initial_distribution(x_coord);
 
     // inverse matrix
-    std::vector<std::vector<double> > inv_m(dof, std::vector<double>(dof));
+    std::vector<double> inv_m(dof, 0.0);
     
-    
-    inv_m = inverse(m);
+    inv_m = inverse(temp_m);
 
+ 
     // multiply nu and delta_t to inv_m
     for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            inv_m[i][j] = inv_m[i][j] * nu * delta_t;
-        }
+        
+        inv_m[i] = inv_m[i] * nu * delta_t;
+        
     }
     
 
@@ -427,6 +417,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
                 } 
             }
 
+
             for (int q = 0; q < num_quad_points; q++) {
                 double weight = det_j_mat * gl_wts[q];
                 
@@ -449,16 +440,16 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
         }
 
         // multiply matrix of one column R by inv_m into matrix R_inv_m
-        std::vector<std::vector<double> > R_inv_m(dof, std::vector<double>(1, 0.0));
+        std::vector<double> R_inv_m(dof, 0.0);
         for (int i = 0; i < dof; i++) {
             for (int j = 0; j < dof; j++) {
-                R_inv_m[i][0] += inv_m[i][j] * R[j];
+                if (i == j) R_inv_m[i] += inv_m[i] * R[j];
             }
         }
 
         // subtract R_inv_m from u_old and store in u_new
         for (int i = 0; i < dof; i++) {
-            u_new[i] = u_old[i] - R_inv_m[i][0];
+            u_new[i] = u_old[i] - R_inv_m[i];
         }
 
 

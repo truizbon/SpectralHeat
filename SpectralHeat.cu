@@ -19,15 +19,13 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 std::vector<std::vector<double> > inverse(std::vector<std::vector<double> > m);
 
 __global__ void mass_matrix(double* temp, double* phi_hat, double* gl_wts, double det_j_mat, int num_elem, int size) {
-    int row = blockIdx.y*blockDim.y+threadIdx.y;
-    int col = blockIdx.x*blockDim.x+threadIdx.x;
+    int temp_i = blockIdx.x*blockDim.x+threadIdx.x;
 
-
-    if (row < num_elem) {
-        int i_q = row*size+col;
+    // bounds check
+    if (blockIdx.x < num_elem) {
         int q_q = threadIdx.x*size+threadIdx.x;
         double weight = det_j_mat * gl_wts[threadIdx.x];
-        temp[i_q] += weight * phi_hat[q_q] * phi_hat[q_q];
+        temp[temp_i] += weight * phi_hat[q_q] * phi_hat[q_q];
     }
 }
 
@@ -35,7 +33,10 @@ __global__ void global_matrix(double* m, double* temp, int num_elem, int size, i
     int m_i = blockIdx.x*blockDim.x+threadIdx.x;
     int temp_i = m_i;
 
+    // bounds check
     if (blockIdx.x < num_elem) {
+
+        // even elements
         if (even && blockIdx.x % 2 == 0) {
 
             if (blockIdx.x > 0) 
@@ -43,7 +44,7 @@ __global__ void global_matrix(double* m, double* temp, int num_elem, int size, i
 
             m[m_i] = temp[temp_i];
 
-
+        // odd elements
         } else {
             if (!even && blockIdx.x % 2 != 0) {
 
@@ -269,31 +270,31 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 
     // construct the basis lagrange polynomials
     std::vector<double> phi_hat(num_quad_points * num_quad_points, 0.0);
-    std::vector<std::vector<double> > phi_hat_deriv(num_quad_points, std::vector<double>(num_quad_points, 0.0));
+    std::vector<double> phi_hat_deriv(num_quad_points * num_quad_points, 0.0);
 
     for (int i = 0; i < num_quad_points; i++) {
         for (int j = 0; j < num_quad_points; j++) {
             phi_hat[i*num_quad_points+j] = lagrange_basis_polynomial(gl_pts, i+1, gl_pts[j]);
-            phi_hat_deriv[i][j] = lagrange_basis_derivative(gl_pts, i+1, gl_pts[j]);
+            phi_hat_deriv[i*num_quad_points+j] = lagrange_basis_derivative(gl_pts, i+1, gl_pts[j]);
         }
     }
 
 
     int dof = num_elem + 1 + (p - 1) * num_elem;
     
-    std::cout << "A" << std::endl;
+    // std::cout << "A" << std::endl;
     // mass matrix
     std::vector<double> temp_m(dof, 0.0);
-    std::cout << "B" << std::endl;
+    // std::cout << "B" << std::endl;
     // stiffness matrix
     std::vector<std::vector<double> > k(dof, std::vector<double>(dof, 0.0));
-    std::cout << "C" << std::endl;
+    // std::cout << "C" << std::endl;
     // load vector
     std::vector<std::vector<double> > f(dof, std::vector<double>(1, 0.0));
-    std::cout << "D" << std::endl;
+    // std::cout << "D" << std::endl;
     // solution vector
     std::vector<std::vector<double> > u_temp(dof, std::vector<double>(1, 0.0));
-    std::cout << "E" << std::endl;
+    // std::cout << "E" << std::endl;
 
 
     x_w = lglnodes(p);
@@ -322,42 +323,49 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     double det_j_mat = j_mat;
     double inv_j_mat = 1.0 / j_mat;
     
+    /*
+    *
+    * Compute the local mass matrices using CUDA
+    * temp: stores the diagonal entries from local mass matrix as rows
+    */
     std::vector<double> temp(num_elem * num_basis_functions, 0.0);
 
-     dev_array<double> device_temp(num_elem * num_basis_functions);
+    // load to device
+    dev_array<double> device_temp(num_elem * num_basis_functions);
     device_temp.set(&temp[0], num_elem * num_basis_functions);
 
+    // load to device
     dev_array<double> device_phi_hat(num_basis_functions * num_basis_functions);
     device_phi_hat.set(&phi_hat[0], num_basis_functions * num_basis_functions);
 
+    // load to device
     dev_array<double> device_gl_wts(num_basis_functions);
     device_gl_wts.set(&gl_wts[0], num_basis_functions);
 
-
+    // how will this work when num_basis_functions greater than max threads (512) ?
     mass_matrix<<<num_elem,num_basis_functions>>>(device_temp.getData(), device_phi_hat.getData(), device_gl_wts.getData(), det_j_mat, num_elem, num_basis_functions);
     cudaDeviceSynchronize();
 
-    device_temp.get(&temp[0], num_elem * num_basis_functions);
+    /*
+    * Compute the global matrix m using the concept of element coloring
+    *
+    */
 
+    // load to device
     dev_array<double> device_m(dof);
     device_m.set(&temp_m[0], dof);
 
-    device_temp.set(&temp[0], num_elem * num_basis_functions); //
-
+    // even elements
     global_matrix<<<num_elem,num_basis_functions>>>(device_m.getData(), device_temp.getData(), num_elem, num_basis_functions, 2);
     cudaDeviceSynchronize();
+
+    // odd elements
     global_matrix<<<num_elem,num_basis_functions>>>(device_m.getData(), device_temp.getData(), num_elem, num_basis_functions, 0);
     cudaDeviceSynchronize();
 
+    // load to host
     device_m.get(&temp_m[0], dof);
     
-
-    // print m
-    std::cout << "m:" << std::endl;
-    for (int i = 0; i < dof; i++) {
-        std::cout << temp_m[i] << " ";
-    }
-    std::cout << std::endl;
 
     std::vector<std::vector<double> > m(dof, std::vector<double>(dof, 0.0));
 
@@ -367,14 +375,6 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
         }
     }
 
-    for (int i = 0; i < dof; i++) {
-        for (int j = 0; j < dof; j++) {
-            std::cout << m[i][j] << " ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
-
 
     std::vector<double> u_old(dof);
     std::vector<double> u_new(dof);
@@ -383,7 +383,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     // inverse matrix
     std::vector<std::vector<double> > inv_m(dof, std::vector<double>(dof));
     
-    // //cublas?
+    
     inv_m = inverse(m);
 
     // multiply nu and delta_t to inv_m
@@ -397,15 +397,25 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     // Create dv/dx du/dx term
     std::vector<double> du(dof);
 
+    std::cout << (final_time / delta_t)-1 << std::endl;
+    // int one = ((final_time / delta_t)-1) / 3;
+    // int two = one * 2;
+    // int three = one * 3;
+    
+
     for (int count_z = 0; count_z < (final_time / delta_t)-1; count_z++) {
+
+        // if (count_z == one) std::cout << "1/3" << std::endl;
+        // if (count_z == two) std::cout << "2/3" << std::endl;
+        // if (count_z == three) std::cout << "3/3" << std::endl;
         
         // matrix R of zeros
-        std::vector<std::vector<double> > R(dof, std::vector<double>(1, 0.0));
+        std::vector<double> R(dof, 0.0);
+        // Re zeros
+        std::vector<double> re(num_basis_functions * num_elem, 0.0);
 
         for (int n = 0; n < num_elem; n++) {
             
-            // Re zeros
-            std::vector<std::vector<double> > re(num_basis_functions, std::vector<double>(1, 0.0));
             double lbound = n * (num_quad_points - 1) + 1;
             double ubound = lbound + num_quad_points - 1;
 
@@ -413,7 +423,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
             for (int q = 0; q < num_quad_points; q++) {
                 du[q] = 0.0;
                 for (int i = 1; i <= num_basis_functions; i++) {
-                    du[q] += u_old[lbound + i - 2] * phi_hat_deriv[i - 1][q];
+                    du[q] += u_old[lbound + i - 2] * phi_hat_deriv[(i - 1) * num_quad_points + q];
                 } 
             }
 
@@ -421,12 +431,19 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
                 double weight = det_j_mat * gl_wts[q];
                 
                 for (int i = 0; i < num_basis_functions; i++) {
-                    re[i][0] += phi_hat_deriv[i][q] * inv_j_mat * du[q] * inv_j_mat * weight;
+                    re[n * num_basis_functions + i] += phi_hat_deriv[i * num_quad_points + q] * inv_j_mat * du[q] * inv_j_mat * weight;
                 }
             }
 
+
+        }
+
+        for (int n = 0; n < num_elem; n++) {
+            double lbound = n * (num_quad_points - 1) + 1;
+            double ubound = lbound + num_quad_points - 1;
+
             for (int j = lbound - 1, i = 0; j < ubound; i++,j++) {
-                R[j][0] += re[i][0];
+                R[j] += re[n * num_basis_functions + i];
             }
 
         }
@@ -435,7 +452,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
         std::vector<std::vector<double> > R_inv_m(dof, std::vector<double>(1, 0.0));
         for (int i = 0; i < dof; i++) {
             for (int j = 0; j < dof; j++) {
-                R_inv_m[i][0] += inv_m[i][j] * R[j][0];
+                R_inv_m[i][0] += inv_m[i][j] * R[j];
             }
         }
 

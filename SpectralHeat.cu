@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
 
     // write elapsed time to file whose name depends on p and num_elem .txt
     std::ofstream file2;
-    std::string filename = "elapsed_time.txt";
+    std::string filename = std::to_string(p) + "_" + std::to_string(num_elem) + "_elapsed_time.txt";
     file2.open(filename);
     file2 << elapsed.count() << std::endl;
     file2.close();
@@ -271,6 +271,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 
 
     int dof = num_elem + 1 + (p - 1) * num_elem;
+    // std::cout << "dof:" << dof << std::endl;
     
     // std::cout << "A" << std::endl;
     // mass matrix
@@ -387,7 +388,7 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
     // Create dv/dx du/dx term
     std::vector<double> du(dof);
 
-    std::cout << (final_time / delta_t)-1 << std::endl;
+    // std::cout << "time steps:" << (final_time / delta_t)-1 << std::endl;
     // int one = ((final_time / delta_t)-1) / 3;
     // int two = one * 2;
     // int three = one * 3;
@@ -439,12 +440,12 @@ std::vector<std::vector<double> > spectral_heat(int p, int num_elem, double l, d
 
         }
 
-        // multiply matrix of one column R by inv_m into matrix R_inv_m
+        // multiply vector R by inv_m into vector R_inv_m
         std::vector<double> R_inv_m(dof, 0.0);
-        for (int i = 0; i < dof; i++) {
-            for (int j = 0; j < dof; j++) {
-                if (i == j) R_inv_m[i] += inv_m[i] * R[j];
-            }
+        for (int i = 0; i < dof; i++) { 
+            
+            R_inv_m[i] += inv_m[i] * R[i];
+            
         }
 
         // subtract R_inv_m from u_old and store in u_new
